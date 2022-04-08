@@ -8,6 +8,7 @@
 ##
 import re
 import os
+import stat
 import logging
 import datetime
 import time
@@ -19,16 +20,30 @@ import inspect
 import platform
 import importlib
 from collections import namedtuple
-
-####
-# Helper to allow Enum type to be used which allows better code readability
-#
-# ref: http://stackoverflow.com/questions/36932/how-can-i-represent-an-enum-in-python
-####
+from enum import Enum as StdEnum
+import locale
 
 
-class Enum(tuple):
-    __getattr__ = tuple.index
+def Enum(*args):
+    items = []
+    if len(args) == 1:
+        item = args[0]
+        if isinstance(item, list):
+            items = item
+        elif isinstance(item, tuple):
+            items = list(item)
+        else:
+            items.append(item)
+    else:
+        items = args
+    calling_frame = inspect.stack()[1]
+    calling_mod = inspect.getmodule(calling_frame[0])
+    calling_func = calling_frame.function
+    calling_line = calling_frame.lineno
+
+    enum_name = calling_func + ":" + str(calling_line)
+    logging.warning(f"Enum is deprecated! Please fix it in {calling_mod}:{calling_func}")
+    return StdEnum(enum_name, items, module=calling_mod)
 
 
 ####
@@ -66,14 +81,15 @@ class PropagatingThread(threading.Thread):
 #
 #  http://stackoverflow.com/questions/19423008/logged-subprocess-communicate
 ####
-def reader(filepath, outstream, stream, logging_level=logging.INFO):
+def reader(filepath, outstream, stream, logging_level=logging.INFO, encodingErrors='strict'):
     f = None
     # open file if caller provided path
     if(filepath):
         f = open(filepath, "w")
 
+    (_, encoding) = locale.getdefaultlocale()
     while True:
-        s = stream.readline().decode()
+        s = stream.readline().decode(encoding, errors=encodingErrors)
         if not s:
             break
         if(f is not None):
@@ -98,7 +114,6 @@ def GetHostInfo():
     host_info = platform.uname()
     os = host_info.system
     processor_info = host_info.machine
-    logging.debug("Getting host info for host: {0}".format(str(host_info)))
 
     arch = None
     bit = None
@@ -150,11 +165,13 @@ def timing(f):
 # @param logging_level - log level to log output at.  Default is INFO
 # @param raise_exception_on_nonzero - Setting to true causes exception to be raised if the cmd
 #                                     return code is not zero.
+# @param encodingErrors - may be given to set the desired error handling for encoding errors decoding cmd output.
+#                         Default is 'strict'.
 #
 # @return returncode of called cmd
 ####
 def RunCmd(cmd, parameters, capture=True, workingdir=None, outfile=None, outstream=None, environ=None,
-           logging_level=logging.INFO, raise_exception_on_nonzero=False):
+           logging_level=logging.INFO, raise_exception_on_nonzero=False, encodingErrors='strict'):
     cmd = cmd.strip('"\'')
     if " " in cmd:
         cmd = '"' + cmd + '"'
@@ -168,7 +185,7 @@ def RunCmd(cmd, parameters, capture=True, workingdir=None, outfile=None, outstre
     logging.log(logging_level, "------------------------------------------------")
     c = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=workingdir, shell=True, env=environ)
     if(capture):
-        thread = PropagatingThread(target=reader, args=(outfile, outstream, c.stdout, logging_level))
+        thread = PropagatingThread(target=reader, args=(outfile, outstream, c.stdout, logging_level, encodingErrors))
         thread.start()
         c.wait()
         thread.join()
@@ -178,13 +195,15 @@ def RunCmd(cmd, parameters, capture=True, workingdir=None, outfile=None, outstre
     endtime = datetime.datetime.now()
     delta = endtime - starttime
     endtime_str = "{0[0]:02}:{0[1]:02}".format(divmod(delta.seconds, 60))
+    returncode_str = "{0:#010x}".format(c.returncode)
     logging.log(logging_level, "------------------------------------------------")
     logging.log(logging_level, "--------------Cmd Output Finished---------------")
     logging.log(logging_level, "--------- Running Time (mm:ss): " + endtime_str + " ----------")
+    logging.log(logging_level, "----------- Return Code: " + returncode_str + " ------------")
     logging.log(logging_level, "------------------------------------------------")
 
     if raise_exception_on_nonzero and c.returncode != 0:
-        raise Exception("{0} failed with error code: {1}".format(cmd, c.returncode))
+        raise Exception("{0} failed with Return Code: {1}".format(cmd, returncode_str))
     return c.returncode
 
 ####
@@ -390,40 +409,57 @@ def locate_class_in_module(Module, DesiredClass):
     It gives preference to classes that are defined in the module itself.
     This means that if you have an import that subclasses DesiredClass, it will be picked unless
     there is a class defined in the module that subclasses DesiredClass.
+
+    In this hypothetical class hierarchy, GrandChildClass would be picked
+    --------------      ------------      -----------------
+    |DesiredClass|  ->  |ChildClass|  ->  |GrandChildClass|
+    --------------      ------------      -----------------
     '''
 
-    DesiredClassInstances = []  # a list of all the matching classes that we find
+    DesiredClassInstance = None
     # Pull out the contents of the module that was provided
     module_contents = dir(Module)
-    module_file = Module.__file__
     # Filter through the Module, we're only looking for classes.
     classList = [getattr(Module, obj) for obj in module_contents
                  if inspect.isclass(getattr(Module, obj))]
+
     for _class in classList:
         # Classes that the module import show up in this list too so we need
         # to make sure it's an INSTANCE of DesiredClass, not DesiredClass itself!
+        # if multiple instances are found in the same class hierarchy, pick the
+        # most specific one. If multiple instances are found belonging to different
+        # class hierarchies, raise an error.
         if _class is not DesiredClass and issubclass(_class, DesiredClass):
-            try:
-                _class_file = inspect.getfile(_class)  # get the file name of the class we care about
-            except TypeError:  # we throw a type error if a builtin module? PlatformBuild is considered builtin?
-                _class_file = module_file
-            if _class_file == module_file:  # if this is in the same file as the module
-                DesiredClassInstances.insert(0, _class)  # put it at the front of the list
-            else:  # otherwise to the back of the list
-                DesiredClassInstances.append(_class)
-    if len(DesiredClassInstances) == 0:  # we didn't find anything
-        return None
-    if len(DesiredClassInstances) > 1:  # we can't log because logging isn't setup yet
-        print(f"Multiple {DesiredClass.__name__} classes were found. Using {DesiredClassInstances[0].__name__}")
-    return DesiredClassInstances[0]  # return the first (highest priority class)
+            if (DesiredClassInstance is None) or issubclass(_class, DesiredClassInstance):
+                DesiredClassInstance = _class
+            elif not issubclass(DesiredClassInstance, _class):
+                raise RuntimeError(f"Multiple instances were found:\n\t{DesiredClassInstance}\n\t{_class}")
+    return DesiredClassInstance
 
 
-if __name__ == '__main__':
-    pass
-    # Test code for printing a byte buffer
-    # a = [0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d]
-    # index = 0x55
-    # while(index < 0x65):
-    #     a.append(index)
-    #     PrintByteList(a)
-    #     index += 1
+def RemoveTree(dir_path: str, ignore_errors: bool = False) -> None:
+    '''
+    Helper for removing a directory.  Over time there have been
+    many private implementations of this due to reliability issues in the
+    shutil implementations.  To consolidate on a single function this helper is added.
+
+    On error try to change file attributes.  Also add retry logic.
+
+    dir_path: Path to directory to remove.
+    ignore_errors: ignore errors during removal
+    '''
+
+    def remove_readonly(func, path, _):
+        ''' private function to attempt to change permissions on file/folder being deleted'''
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    for _ in range(3):  # retry up to 3 times
+        try:
+            shutil.rmtree(dir_path, ignore_errors=ignore_errors, onerror=remove_readonly)
+        except OSError as err:
+            logging.warning(f"Failed to fully remove {dir_path}: {err}")
+        else:
+            break
+    else:
+        raise RuntimeError(f"Failed to remove {dir_path}")

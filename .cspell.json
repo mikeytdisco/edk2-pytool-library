@@ -76,6 +76,21 @@
         "hexlify",
         "ctypes",
         "ioapic",
-        "OEMID"
+        "SECUREBOOT",
+        "OEMID",
+        "SKUID",
+        "pcdtype",
+        "PATCHABLEINMODULE",
+        "DYNAMICHII",
+        "DYNAMICVPD",
+        "DYNAMICEXHII",
+        "DYNAMICEXVPD",
+        "PCD's",
+        "MDEPKG",
+        "iommu",
+        "smoosh",
+        "markdownlint",
+        "codecov",
+        "nonlocalizable"
     ]
 }

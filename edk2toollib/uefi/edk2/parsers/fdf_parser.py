@@ -44,6 +44,12 @@ class FdfParser(HashFileParser):
 
         return sline
 
+    def InsertLinesFromFile(self, file_path: str):
+        with open(file_path, 'r') as lines_file:
+            self.Lines += reversed(lines_file.readlines())
+            # Back off the line count to ignore the include line itself.
+            self.CurrentLine -= 1
+
     def ParseFile(self, filepath):
         self.Logger.debug("Parsing file: %s" % filepath)
         if(not os.path.isabs(filepath)):
@@ -51,6 +57,7 @@ class FdfParser(HashFileParser):
         else:
             fp = filepath
         self.Path = fp
+        self.TargetFilePath = os.path.abspath(fp)
         self.CurrentLine = 0
         self._f = open(fp, "r")
         self.Lines = self._f.readlines()
@@ -71,9 +78,19 @@ class FdfParser(HashFileParser):
             if sline is None:
                 break
 
+            if sline.lower().startswith('!include'):
+                tokens = sline.split()
+                include_file = tokens[1]
+                sp = self.FindPath(include_file)
+                if sp is None:
+                    raise FileNotFoundError(include_file)
+                self.Logger.debug("Opening Include File %s" % sp)
+                self.InsertLinesFromFile(sp)
+                continue
+
             if sline.strip().startswith("[") and sline.strip().endswith("]"):  # if we're starting a new section
                 # this basically gets what's after the . or if it doesn't have a period
-                # the whole thing for every comma seperated item in sline
+                # the whole thing for every comma separated item in sline
                 self.CurrentSection = [
                     x.split(".", 1)[1] if "." in x else x for x in sline.strip("[] ").strip().split(",")]
                 InDefinesSection = False
@@ -122,11 +139,11 @@ class FdfParser(HashFileParser):
 
                         while self._BracketCount > 0:  # go until we get our bracket back
                             sline = self.GetNextLine().strip("}{ ")
-                            # SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF PROCESSING_REQUIRED = TRUE
+                            # SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF
                             if sline.upper().startswith("SECTION GUIDED"):  # get the guided section
                                 section_def = sline[14:].strip().split("=", 1)
-                                sectionType = section_def[0].strip()  # UI in this example
-                                sectionValue = section_def[1].strip()
+                                # EE4E5898-3914-4259-9D6E-DC7BD79403CF in this example
+                                sectionType = section_def[0].strip()
                                 if sectionType not in self.FVs[section]["Files"][currentName]:
                                     self.FVs[section]["Files"][currentName][sectionType] = {}
                                 # TODO support guided sections

@@ -9,7 +9,31 @@
 
 import unittest
 import os
+import sys
 import edk2toollib.utility_functions as utilities
+
+
+class DesiredClass():
+    def __str__(self):
+        return "DesiredClass"
+
+
+class ChildOfDesiredClass(DesiredClass):
+    def __str__(self):
+        return "Child of DesiredClass"
+
+
+class GrandChildOfDesiredClass(ChildOfDesiredClass):
+    def __str__(self):
+        return "GrandChild of DesiredClass"
+
+
+'''
+The current solution can't handle a brother class
+class BrotherOfChildOfDesiredClass(DesiredClass):
+    def __str__(self):
+        return "Brother of Child of DesiredClass"
+'''
 
 
 class UtilityFunctionsTest(unittest.TestCase):
@@ -33,6 +57,39 @@ class UtilityFunctionsTest(unittest.TestCase):
                                             raise_exception_on_nonzero=True)
             self.assertNotEqual(ret, 0)
 
+    def test_locate_class_in_module(self):
+        module = sys.modules[__name__]
+
+        found_class = utilities.locate_class_in_module(module, DesiredClass)
+        self.assertIsNotNone(found_class)
+        self.assertEqual(found_class, GrandChildOfDesiredClass)
+
+
+class EnumClassTest(unittest.TestCase):
+    def test_EnumClass_array(self):
+        all_animals = ["Dog", "Cat", "Rabbit"]
+        animals = utilities.Enum(all_animals)
+
+        # make sure we have three animals
+        self.assertEqual(len(animals), 3)
+        self.assertTrue(hasattr(animals, "Dog"))
+        self.assertFalse(hasattr(animals, "Rat"))
+        self.assertFalse(hasattr(animals, "dog"))
+        # check to make sure the values are unique
+        self.assertNotEqual(animals.Dog, animals.Cat)
+
+        # make sure we can iterate over the members
+        for animal in animals.__members__:
+            self.assertIn(animal, all_animals)
+
+    def test_EnumClass_args(self):
+        colors = utilities.Enum("Green", "Blue", "Red", "Yellow")
+        # make sure we have four colors
+        self.assertEqual(len(colors), 4)
+        self.assertTrue(hasattr(colors, "Red"))
+        self.assertFalse(hasattr(colors, "Purple"))
+        # check to make sure the values are unique
+        self.assertNotEqual(colors.Green, colors.Red)
 
 # DO NOT PUT A MAIN FUNCTION HERE
 # this test runs itself to test runpython script, which is a tad bit strange yes.

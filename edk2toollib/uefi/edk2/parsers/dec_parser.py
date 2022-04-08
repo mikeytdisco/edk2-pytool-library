@@ -118,14 +118,23 @@ class PcdDeclarationEntry():
         sp = rawtext.partition(".")
         self.token_space_name = sp[0].strip()
         op = sp[2].split("|")
-
-        if(len(op) != 4):
-            raise Exception("Too many parts")
+        # if it's 2 long, we need to check that it's a structured PCD
+        if(len(op) == 2 and op[0].count(".") > 0):
+            pass
+        # otherwise it needs at least 4 parts
+        elif(len(op) < 4):
+            raise Exception(f"Too few parts: {op}")
+        # but also less than 5
+        elif(len(op) > 5):
+            raise Exception(f"Too many parts: {rawtext}")
+        elif(len(op) == 5 and op[4].strip() != '{'):
+            raise Exception(f"Too many parts: {rawtext}")
 
         self.name = op[0].strip()
         self.default_value = op[1].strip()
-        self.type = op[2].strip()
-        self.id = op[3].strip()
+        # if we don't know what the type and id, it's because it's structured
+        self.type = op[2].strip() if len(op) > 2 else "STRUCTURED_PCD"
+        self.id = op[3].strip() if len(op) > 2 else "STRUCTURED_PCD"
 
 
 class DecParser(HashFileParser):
@@ -153,6 +162,7 @@ class DecParser(HashFileParser):
         InGuidsSection = False
         InPPISection = False
         InPcdSection = False
+        InStructuredPcdDeclaration = False
         InIncludesSection = False
 
         for line in self.Lines:
@@ -199,9 +209,15 @@ class DecParser(HashFileParser):
             elif InPcdSection:
                 if sline.strip()[0] == '[':
                     InPcdSection = False
+                elif sline.strip()[0] == '}':
+                    InStructuredPcdDeclaration = False
                 else:
+                    if InStructuredPcdDeclaration:
+                        continue
                     t = PcdDeclarationEntry(self.PackageName, sline)
                     self.Pcds.append(t)
+                    if sline.rstrip()[-1] == '{':
+                        InStructuredPcdDeclaration = True
                     continue
 
             elif InIncludesSection:
