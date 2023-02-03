@@ -11,8 +11,8 @@
     "ignorePaths": [
         "*.exe"
     ],
-    "ignoreWords": [
-    ],
+    "allowCompoundWords": true,
+    "ignoreWords": [],
     "words": [
         "isfile",
         "isclass",
@@ -67,7 +67,9 @@
         "dirid",
         "nologo",
         "rsassa",
-        "fixedpcd", "featurepcd", "patchpcd",
+        "fixedpcd",
+        "featurepcd",
+        "patchpcd",
         "edkii",
         "levelno",
         "localizable",
@@ -91,6 +93,9 @@
         "smoosh",
         "markdownlint",
         "codecov",
-        "nonlocalizable"
+        "nonlocalizable",
+        "mkdocs",
+        "DBXFILE",
+        "decodefs"
     ]
 }

@@ -6,38 +6,45 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 ##
-
+# noqa
 import setuptools
 from setuptools.command.sdist import sdist
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 from edk2toollib.windows.locate_tools import _DownloadVsWhere
+from edk2toollib.utility_functions import GetHostInfo
 
 with open("readme.md", "r") as fh:
     long_description = fh.read()
 
 
-class PostSdistCommand(sdist):
-    """Post-sdist."""
-    def run(self):
-        # we need to download vswhere so throw the exception if we don't get it
+def _download_vswhere_if_windows(): # noqa
+    """Downloads vswhere only if on the windows OS."""
+    if GetHostInfo().os == "Windows":
         _DownloadVsWhere()
+
+
+class PostSdistCommand(sdist): # noqa
+    """Post-sdist."""
+    def run(self): # noqa
+        # we need to download vswhere so throw the exception if we don't get it
+        _download_vswhere_if_windows()
         sdist.run(self)
 
 
-class PostInstallCommand(install):
+class PostInstallCommand(install): # noqa
     """Post-install."""
-    def run(self):
+    def run(self): # noqa
         install.run(self)
-        _DownloadVsWhere()
+        _download_vswhere_if_windows()
 
 
-class PostDevCommand(develop):
+class PostDevCommand(develop): # noqa
     """Post-develop."""
-    def run(self):
+    def run(self): # noqa
         develop.run(self)
         try:
-            _DownloadVsWhere()
+            _download_vswhere_if_windows()
         except:
             pass
 
@@ -60,11 +67,15 @@ setuptools.setup(
     include_package_data=True,
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
+    python_requires=">=3.9.0",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: BSD License",
         "Operating System :: OS Independent",
         "Development Status :: 4 - Beta",
-        "Intended Audience :: Developers"
+        "Intended Audience :: Developers",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11"
     ]
 )

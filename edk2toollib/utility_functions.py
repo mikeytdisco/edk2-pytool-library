@@ -6,6 +6,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 ##
+"""Module containing utility functions to support re-use in python scripts."""
 import re
 import os
 import stat
@@ -24,7 +25,7 @@ from enum import Enum as StdEnum
 import locale
 
 
-def Enum(*args):
+def Enum(*args): # noqa
     items = []
     if len(args) == 1:
         item = args[0]
@@ -46,15 +47,16 @@ def Enum(*args):
     return StdEnum(enum_name, items, module=calling_mod)
 
 
-####
-# Class to support running commands from the shell in a python environment.
-# Don't use directly.
-#
-# PropagatingThread copied from sample here:
 # https://stackoverflow.com/questions/2829329/catch-a-threads-exception-in-the-caller-thread-in-python
-####
-class PropagatingThread(threading.Thread):
-    def run(self):
+# TODO make this a private class.
+class PropagatingThread(threading.Thread): # noqa
+    """Class to support running commands from the shell in a python environment.
+
+    Don't use directly.
+
+    PropagatingThread copied from sample here:
+    """
+    def run(self): # noqa
         self.exc = None
         try:
             if hasattr(self, '_Thread__target'):
@@ -65,26 +67,26 @@ class PropagatingThread(threading.Thread):
         except BaseException as e:
             self.exc = e
 
-    def join(self, timeout=None):
+    def join(self, timeout=None): # noqa
         super(PropagatingThread, self).join()
         if self.exc:
             raise self.exc
         return self.ret
 
 
-####
-# Helper functions for running commands from the shell in python environment
-# Don't use directly
-#
-# process output stream and write to log.
-# part of the threading pattern.
-#
-#  http://stackoverflow.com/questions/19423008/logged-subprocess-communicate
-####
-def reader(filepath, outstream, stream, logging_level=logging.INFO, encodingErrors='strict'):
+# http://stackoverflow.com/questions/19423008/logged-subprocess-communicate
+# TODO make this a private function
+def reader(filepath, outstream, stream, logging_level=logging.INFO, encodingErrors='strict'): # noqa
+    """Helper functions for running commands from the shell in python environment.
+
+    Don't use directly
+
+    process output stream and write to log.
+    part of the threading pattern.
+    """
     f = None
     # open file if caller provided path
-    if(filepath):
+    if (filepath):
         f = open(filepath, "w")
 
     (_, encoding) = locale.getdefaultlocale()
@@ -92,24 +94,24 @@ def reader(filepath, outstream, stream, logging_level=logging.INFO, encodingErro
         s = stream.readline().decode(encoding, errors=encodingErrors)
         if not s:
             break
-        if(f is not None):
+        if (f is not None):
             # write to file if caller provided file
             f.write(s)
-        if(outstream is not None):
+        if (outstream is not None):
             # write to stream object if caller provided object
             outstream.write(s)
         logging.log(logging_level, s.rstrip())
     stream.close()
-    if(f is not None):
+    if (f is not None):
         f.close()
 
 
-####
-# Returns a namedtuple containing information about host machine.
-#
-# @return namedtuple Host(os=OS Type, arch=System Architecture, bit=Highest Order Bit)
-####
 def GetHostInfo():
+    """Returns a namedtuple containing information about host machine.
+
+    Returns:
+        (namedTuple[Host(os, arch, bit)]): Host(os=OS Type, arch=System Architecture, bit=Highest Order Bit)
+    """
     Host = namedtuple('Host', 'os arch bit')
     host_info = platform.uname()
     os = host_info.system
@@ -134,14 +136,15 @@ def GetHostInfo():
     return Host(os=os, arch=arch, bit=bit)
 
 
-####
-# This is a mixing to do timing on a function. Use it like this:
-#
-# @timing
-# def function_i_want_to_time():
-#   ...
-####
 def timing(f):
+    """This is a mixing to do timing on a function.
+
+    Example:
+        ```
+            @timing
+            def function_i_want_to_time():
+        ```
+    """
     def wrap(*args):
         time1 = time.time()
         ret = f(*args)
@@ -151,27 +154,35 @@ def timing(f):
     return wrap
 
 
-####
-# Run a shell command and print the output to the log file
-# This is the public function that should be used to run commands from the shell in python environment
-# @param cmd - command being run, either quoted or not quoted
-# @param parameters - parameters string taken as is
-# @param capture - boolean to determine if caller wants the output captured in any format.
-# @param workingdir - path to set to the working directory before running the command.
-# @param outfile - capture output to file of given path.
-# @param outstream - capture output to a stream.
-# @param environ - shell environment variables dictionary that replaces the one inherited from the
-#                  current process.
-# @param logging_level - log level to log output at.  Default is INFO
-# @param raise_exception_on_nonzero - Setting to true causes exception to be raised if the cmd
-#                                     return code is not zero.
-# @param encodingErrors - may be given to set the desired error handling for encoding errors decoding cmd output.
-#                         Default is 'strict'.
-#
-# @return returncode of called cmd
-####
 def RunCmd(cmd, parameters, capture=True, workingdir=None, outfile=None, outstream=None, environ=None,
-           logging_level=logging.INFO, raise_exception_on_nonzero=False, encodingErrors='strict'):
+           logging_level=logging.INFO, raise_exception_on_nonzero=False, encodingErrors='strict',
+           close_fds=True):
+    """Run a shell command and print the output to the log file.
+
+    This is the public function that should be used to run commands from the shell in python environment
+
+    Attributes:
+        cmd (str): command being run, either quoted or not quoted
+        parameters (str): parameters string taken as is
+        capture (obj): boolean to determine if caller wants the output captured
+            in any format.
+        workingdir (str): path to set to the working directory before running
+            the command.
+        outfile (obj): capture output to file of given path.
+        outstream (obj): capture output to a stream.
+        environ (obj): shell environment variables dictionary that replaces the
+            one inherited from the current process.
+        logging_level (obj): log level to log output at.  Default is INFO
+        raise_exception_on_nonzero (bool): Setting to true causes exception to
+            be raised if the cmd return code is not zero.
+        encodingErrors (str): may be given to set the desired error handling
+            for encoding errors decoding cmd output. Default is 'strict'.
+        close_fds (bool): If True, file descriptors are closed before the
+            command is run. Default is True.
+
+    Returns:
+        (int): returncode of called cmd
+    """
     cmd = cmd.strip('"\'')
     if " " in cmd:
         cmd = '"' + cmd + '"'
@@ -183,8 +194,9 @@ def RunCmd(cmd, parameters, capture=True, workingdir=None, outfile=None, outstre
     logging.log(logging_level, "------------------------------------------------")
     logging.log(logging_level, "--------------Cmd Output Starting---------------")
     logging.log(logging_level, "------------------------------------------------")
-    c = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=workingdir, shell=True, env=environ)
-    if(capture):
+    c = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         cwd=workingdir, shell=True, env=environ, close_fds=close_fds)
+    if (capture):
         thread = PropagatingThread(target=reader, args=(outfile, outstream, c.stdout, logging_level, encodingErrors))
         thread.start()
         c.wait()
@@ -206,34 +218,34 @@ def RunCmd(cmd, parameters, capture=True, workingdir=None, outfile=None, outstre
         raise Exception("{0} failed with Return Code: {1}".format(cmd, returncode_str))
     return c.returncode
 
-####
-# Run a python script and print the output to the log file
-# This is the public function that should be used to execute python scripts from the shell in python environment.
-# The python script will be located using the path as if it was an executable.
-#
-# @param cmd - cmd string to run including parameters
-# @param capture - boolean to determine if caller wants the output captured in any format.
-# @param workingdir - path to set to the working directory before running the command.
-# @param outfile - capture output to file of given path.
-# @param outstream - capture output to a stream.
-# @param environ - shell environment variables dictionary that replaces the one inherited from the
-#                  current process.
-#
-# @return returncode of called cmd
-####
-
 
 def RunPythonScript(pythonfile, params, capture=True, workingdir=None, outfile=None, outstream=None,
                     environ=None, logging_level=logging.INFO, raise_exception_on_nonzero=False):
+    """Run a python script and print the output to the log file.
+
+    This is the public function that should be used to execute python scripts from the shell in python environment.
+    The python script will be located using the path as if it was an executable.
+
+    Attributes:
+        cmd: cmd string to run including parameters
+        capture: boolean to determine if caller wants the output captured in any format.
+        workingdir: path to set to the working directory before running the command.
+        outfile: capture output to file of given path.
+        outstream: capture output to a stream.
+        environ: shell environment variables dictionary that replaces the one inherited from the current process.
+
+    Returns:
+        (int): returncode of called cmd
+    """
     # locate python file on path
     pythonfile.strip('"\'')
     if " " in pythonfile:
         pythonfile = '"' + pythonfile + '"'
     params.strip()
     logging.debug("RunPythonScript: {0} {1}".format(pythonfile, params))
-    if(os.path.isabs(pythonfile)):
+    if (os.path.isabs(pythonfile)):
         logging.debug("Python Script was given as absolute path: %s" % pythonfile)
-    elif(os.path.isfile(os.path.join(os.getcwd(), pythonfile))):
+    elif (os.path.isfile(os.path.join(os.getcwd(), pythonfile))):
         pythonfile = os.path.join(os.getcwd(), pythonfile)
         logging.debug("Python Script was given as relative path: %s" % pythonfile)
     else:
@@ -248,18 +260,18 @@ def RunPythonScript(pythonfile, params, capture=True, workingdir=None, outfile=N
     return RunCmd(sys.executable, params, capture=capture, workingdir=workingdir, outfile=outfile,
                   outstream=outstream, environ=environ, logging_level=logging_level,
                   raise_exception_on_nonzero=raise_exception_on_nonzero)
-####
-# Locally Sign input file using Windows SDK signtool.  This will use a local Pfx file.
-# WARNING!!! : This should not be used for production signing as that process should follow stronger
-#               security practices (HSM / smart cards / etc)
-#
-#  Signing is in format specified by UEFI authentacted variables
-####
 
 
 def DetachedSignWithSignTool(SignToolPath, ToSignFilePath, SignatureOutputFile, PfxFilePath,
                              PfxPass=None, Oid="1.2.840.113549.1.7.2", Eku=None):
+    """Locally Sign input file using Windows SDK signtool.
 
+    This will use a local Pfx file.
+    WARNING: This should not be used for production signing as that process should follow stronger
+        security practices (HSM / smart cards / etc)
+
+    Signing is in format specified by UEFI authentacted variables
+    """
     # check signtool path
     if not os.path.exists(SignToolPath):
         logging.error("Path to signtool invalid.  %s" % SignToolPath)
@@ -283,27 +295,27 @@ def DetachedSignWithSignTool(SignToolPath, ToSignFilePath, SignatureOutputFile, 
         params = params + ' /p ' + PfxPass
     params = params + ' /debug /v "' + ToSignFilePath + '" '
     ret = RunCmd(SignToolPath, params)
-    if(ret != 0):
+    if (ret != 0):
         logging.error("Signtool failed %d" % ret)
         return ret
     signedfile = os.path.join(OutputDir, os.path.basename(ToSignFilePath) + ".p7")
-    if(not os.path.isfile(signedfile)):
+    if (not os.path.isfile(signedfile)):
         raise Exception("Output file doesn't exist %s" % signedfile)
 
     shutil.move(signedfile, SignatureOutputFile)
     return ret
 
-####
-# Locally Sign input file using Windows SDK signtool.  This will use a local Pfx file.
-# WARNING!!! : This should not be used for production signing as that process should follow
-#              stronger security practices (HSM / smart cards / etc)
-#
-#  Signing is catalog format which is an attached signature
-####
-
 
 def CatalogSignWithSignTool(SignToolPath, ToSignFilePath, PfxFilePath, PfxPass=None):
+    """Locally sign input file using Windows SDK signtool.
 
+    This will use a local Pfx file.
+
+    WARNING: This should not be used for production signing as that process should follow
+        stronger security practices (HSM / smart cards / etc)
+
+    Signing is catalog format which is an attached signature
+    """
     # check signtool path
     if not os.path.exists(SignToolPath):
         logging.error("Path to signtool invalid.  %s" % SignToolPath)
@@ -322,54 +334,51 @@ def CatalogSignWithSignTool(SignToolPath, ToSignFilePath, PfxFilePath, PfxPass=N
         params = params + ' /p ' + PfxPass
     params = params + ' /debug /v "' + ToSignFilePath + '" '
     ret = RunCmd(SignToolPath, params, workingdir=OutputDir)
-    if(ret != 0):
+    if (ret != 0):
         logging.error("Signtool failed %d" % ret)
     return ret
 
 
-###
-# Function to print a byte list as hex and optionally output ascii as well as
-# offset within the buffer
-###
 def PrintByteList(ByteList, IncludeAscii=True, IncludeOffset=True, IncludeHexSep=True, OffsetStart=0):
+    """Print a byte list as hex and optionally output ascii as well as offset within the buffer."""
     Ascii = ""
     for index in range(len(ByteList)):
         # Start of New Line
-        if(index % 16 == 0):
-            if(IncludeOffset):
+        if (index % 16 == 0):
+            if (IncludeOffset):
                 print("0x%04X -" % (index + OffsetStart), end='')
 
         # Midpoint of a Line
-        if(index % 16 == 8):
-            if(IncludeHexSep):
+        if (index % 16 == 8):
+            if (IncludeHexSep):
                 print(" -", end='')
 
         # Print As Hex Byte
         print(" 0x%02X" % ByteList[index], end='')
 
         # Prepare to Print As Ascii
-        if(ByteList[index] < 0x20) or (ByteList[index] > 0x7E):
+        if (ByteList[index] < 0x20) or (ByteList[index] > 0x7E):
             Ascii += "."
         else:
             Ascii += ("%c" % ByteList[index])
 
         # End of Line
-        if(index % 16 == 15):
-            if(IncludeAscii):
+        if (index % 16 == 15):
+            if (IncludeAscii):
                 print(" %s" % Ascii, end='')
             Ascii = ""
             print("")
 
     # Done - Lets check if we have partial
-    if(index % 16 != 15):
+    if (index % 16 != 15):
         # Lets print any partial line of ascii
-        if(IncludeAscii) and (Ascii != ""):
+        if (IncludeAscii) and (Ascii != ""):
             # Pad out to the correct spot
 
-            while(index % 16 != 15):
+            while (index % 16 != 15):
                 print("     ", end='')
-                if(index % 16 == 7):  # account for the - symbol in the hex dump
-                    if(IncludeOffset):
+                if (index % 16 == 7):  # account for the - symbol in the hex dump
+                    if (IncludeOffset):
                         print("  ", end='')
                 index += 1
             # print the ascii partial line
@@ -383,6 +392,7 @@ def PrintByteList(ByteList, IncludeAscii=True, IncludeOffset=True, IncludeHexSep
 # With Python 3.0 help from:
 # https://docs.python.org/3.0/whatsnew/3.0.html#ordering-comparisons
 def version_compare(version1, version2):
+    """Compare two versions."""
     def normalize(v):
         return [int(x) for x in re.sub(r'(\.0+)*$', '', v).split(".")]
     (a, b) = (normalize(version1), normalize(version2))
@@ -390,7 +400,7 @@ def version_compare(version1, version2):
 
 
 def import_module_by_file_name(module_file_path):
-    ''' Standard method of importing a Python file. Expecting absolute path. '''
+    """Standard method of importing a Python file. Expecting absolute path."""
     module_name = os.path.basename(module_file_path)
     spec = importlib.util.spec_from_file_location(module_name, module_file_path)
 
@@ -404,8 +414,8 @@ def import_module_by_file_name(module_file_path):
 
 
 def locate_class_in_module(Module, DesiredClass):
-    '''
-    Given a module and a class, this function will return the subclass of DesiredClass found in Module.
+    """Given a module and a class, this function will return the subclass of DesiredClass found in Module.
+
     It gives preference to classes that are defined in the module itself.
     This means that if you have an import that subclasses DesiredClass, it will be picked unless
     there is a class defined in the module that subclasses DesiredClass.
@@ -414,8 +424,7 @@ def locate_class_in_module(Module, DesiredClass):
     --------------      ------------      -----------------
     |DesiredClass|  ->  |ChildClass|  ->  |GrandChildClass|
     --------------      ------------      -----------------
-    '''
-
+    """
     DesiredClassInstance = None
     # Pull out the contents of the module that was provided
     module_contents = dir(Module)
@@ -438,19 +447,17 @@ def locate_class_in_module(Module, DesiredClass):
 
 
 def RemoveTree(dir_path: str, ignore_errors: bool = False) -> None:
-    '''
-    Helper for removing a directory.  Over time there have been
-    many private implementations of this due to reliability issues in the
-    shutil implementations.  To consolidate on a single function this helper is added.
+    """Helper for removing a directory.
 
-    On error try to change file attributes.  Also add retry logic.
+    On error try to change file attributes.  Also adds retry logic.
 
-    dir_path: Path to directory to remove.
-    ignore_errors: ignore errors during removal
-    '''
-
+    Args:
+        dir_path (str): Path to directory to remove.
+        ignore_errors (bool): ignore errors during removal
+    """
+    # TODO actually make this private with _
     def remove_readonly(func, path, _):
-        ''' private function to attempt to change permissions on file/folder being deleted'''
+        """Private function to attempt to change permissions on file/folder being deleted."""
         os.chmod(path, stat.S_IWRITE)
         func(path)
 

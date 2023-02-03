@@ -6,7 +6,10 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 ##
+"""Script to generate Cat files for capsule update.
 
+Based on a supplied inf file and uses the winsdk and command line tool Inf2Cat.exe
+"""
 import os
 import logging
 from edk2toollib.utility_functions import RunCmd
@@ -14,6 +17,12 @@ from edk2toollib.windows.locate_tools import FindToolInWinSdk
 
 
 class CatGenerator(object):
+    """A cat file generator.
+
+    Attributes:
+        arch (str): a supported architecture
+        os (str): a supported os
+    """
     SUPPORTED_OS = {'win10': '10',
                     '10': '10',
                     '10_au': '10_AU',
@@ -28,21 +37,33 @@ class CatGenerator(object):
                     }
 
     def __init__(self, arch, os):
+        """Inits a Cat Generator.
+
+        Args:
+            arch (str): a supported arch
+            os (str): a supported os
+        """
         self.Arch = arch
         self.OperatingSystem = os
 
     @property
     def Arch(self):
+        """Returns the attribute arch."""
         return self._arch
 
     @Arch.setter
     def Arch(self, value):
+        """Validates the arch before setting it.
+
+        Raises:
+            (ValueError): Invalid Architecture
+        """
         value = value.lower()
-        if(value == "x64") or (value == "amd64"):  # support amd64 value so INF and CAT tools can use same arch value
+        if (value == "x64") or (value == "amd64"):  # support amd64 value so INF and CAT tools can use same arch value
             self._arch = "X64"
-        elif(value == "arm"):
+        elif (value == "arm"):
             self._arch = "ARM"
-        elif(value == "arm64") or (value == "aarch64"):  # support UEFI defined aarch64 value as well
+        elif (value == "arm64") or (value == "aarch64"):  # support UEFI defined aarch64 value as well
             self._arch = "ARM64"
         else:
             logging.critical("Unsupported Architecture: %s", value)
@@ -50,19 +71,36 @@ class CatGenerator(object):
 
     @property
     def OperatingSystem(self):
+        """Returns the Operating system attribute."""
         return self._operatingsystem
 
     @OperatingSystem.setter
     def OperatingSystem(self, value):
+        """Validates the OS is supported before setting the attribute.
+
+        Raises:
+            (ValueError): Operating system is unsupported
+        """
         key = value.lower()
-        if(key not in CatGenerator.SUPPORTED_OS.keys()):
+        if (key not in CatGenerator.SUPPORTED_OS.keys()):
             logging.critical("Unsupported Operating System: %s", key)
             raise ValueError("Unsupported Operating System")
         self._operatingsystem = CatGenerator.SUPPORTED_OS[key]
 
     def MakeCat(self, OutputCatFile, PathToInf2CatTool=None):
+        """Generates a cat file to the outputcatfile directory.
+
+        Args:
+            OutputCatFile (str): Where to place the output cat file.
+            PathToInf2CatTool (:obj:`str`, optional): path to Inf2CatTool if known.
+
+        Raises:
+            (Exception): Invalid Inf2CatTool path or unable to find it.
+            (Exception): Inf2CatTool failed
+            (Exception): Cat file not found, but tool executed successfully
+        """
         # Find Inf2Cat tool
-        if(PathToInf2CatTool is None):
+        if (PathToInf2CatTool is None):
             PathToInf2CatTool = FindToolInWinSdk("Inf2Cat.exe")
         # check if exists
         if PathToInf2CatTool is None or not os.path.exists(PathToInf2CatTool):
@@ -73,9 +111,9 @@ class CatGenerator(object):
         # Make Cat file
         cmd = "/driver:. /os:" + self.OperatingSystem + "_" + self.Arch + " /verbose /uselocaltime"
         ret = RunCmd(PathToInf2CatTool, cmd, workingdir=OutputFolder)
-        if(ret != 0):
+        if (ret != 0):
             raise Exception("Creating Cat file Failed with errorcode %d" % ret)
-        if(not os.path.isfile(OutputCatFile)):
+        if (not os.path.isfile(OutputCatFile)):
             raise Exception("CAT file (%s) not created" % OutputCatFile)
 
         return 0
