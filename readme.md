@@ -1,6 +1,6 @@
 # Tianocore Edk2 PyTool Library (edk2toollib)
 
-[![pypi]][_pypi]]
+[![pypi]][_pypi]
 [![codecov]][_codecov]
 [![ci]][_ci]
 [![docs]][_docs]
@@ -128,8 +128,10 @@ details.
 
 [![docs]][_docs]
 
+### Users and Consumers
+
 Documentation for the most recent release of edk2-pytool-library is hosted on
-[tianocore.org/edk2-pytool-library](https://www.tianocore.org/edk2-pytool-library/)]).
+[tianocore.org/edk2-pytool-library](https://www.tianocore.org/edk2-pytool-library/).
 Raw documentation is located in the ```docs/``` folder and is split into two
 separate categories. The first is located at ```docs/user/``` and is
 documentation and API references for those that are using this package in their
@@ -137,12 +139,17 @@ own project. Users can generate a local copy of the documentation by executing t
 following command from the root of the project:
 
 ```cmd
-pip install --upgrade -r .\docs\user\requirements.txt
+pip install --upgrade -e .[docs]
 mkdocs serve
 ```
 
-The second is located at ```docs/contributor/``` and is documentation for
-contributing to the edk2-pytool-extensions repository.
+### Contributors
+
+Contributor documentation is located at ```docs/contributor/``` and contains instructions for:
+
+* Setting up a development and testing environment
+* How edk2pytools is versioned and published
+* Contributing to the edk2-pytool-extensions repository
 
 [codecov]: https://codecov.io/gh/tianocore/edk2-pytool-library/branch/master/graph/badge.svg
 [_codecov]: https://codecov.io/gh/tianocore/edk2-pytool-extensions/

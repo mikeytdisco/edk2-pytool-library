@@ -54,6 +54,12 @@ def _DownloadVsWhere(unpack_folder: os.PathLike = None):
 
     out_file_name = os.path.join(unpack_folder, "vswhere.exe")
     logging.info("Attempting to download vswhere to: {}. This may take a second.".format(unpack_folder))
+
+    # check if the path we want to download to exists
+    if not os.path.exists(unpack_folder):
+        os.makedirs(unpack_folder, exist_ok=True)
+        logging.info("Created folder: {}".format(unpack_folder))
+
     # check if we have the vswhere file already downloaded
     if not os.path.isfile(out_file_name):
         try:
@@ -108,8 +114,8 @@ def GetVsWherePath(fail_on_not_found: bool = True):
         vswhere_dir = os.path.dirname(vswhere_path)
         try:  # try to download
             _DownloadVsWhere(vswhere_dir)
-        except Exception:
-            logging.warning("Tried to download VsWhere and failed")
+        except Exception as exc:
+            logging.warning("Tried to download VsWhere and failed with exception: %s", str(exc))
             pass
 
     # if we're still hosed
@@ -197,13 +203,25 @@ def QueryVcVariables(keys: list, arch: str = None, product: str = None, vs_versi
         logging.error(err_msg)
         raise ValueError(err_msg)
 
+    if len(os.environ['PATH']) > 8191:
+        w = "Win32 Command prompt ignores any environment variables longer then 8191 characters, but your path is "\
+            f"{len(os.environ['PATH'])} characters. Due to this, PATH will not be used when searching for "\
+            f"[{interesting}]. This could result in missing keys."
+        logging.warning(w)
+
     vcvarsall_path = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvarsall.bat")
     logging.debug("Calling '%s %s'", vcvarsall_path, arch)
     popen = subprocess.Popen('"%s" %s & set' % (vcvarsall_path, arch), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         stdout, stderr = popen.communicate()
         if popen.wait() != 0:
-            raise Exception(stderr.decode("mbcs"))
+            stderr = stderr.decode("mbcs")
+            if stderr.startswith("The input line is too long"):
+                stderr = ".bat cmd can not handle args greater than 8191 chars; your total ENV var len exceeds 8191. "\
+                         "Reduce the total length of your ENV variables to resolve this (Typically your PATH is "\
+                         "too long)."
+            logging.error(stderr)
+            raise RuntimeError(stderr)
         stdout = stdout.decode("mbcs")
         for line in stdout.split("\n"):
             if '=' not in line:
@@ -221,7 +239,7 @@ def QueryVcVariables(keys: list, arch: str = None, product: str = None, vs_versi
     if len(result) != len(interesting):
         logging.debug("Input: " + str(sorted(interesting)))
         logging.debug("Result: " + str(sorted(list(result.keys()))))
-        result_set = set(list(result.keys()))
+        result_set = set([key.upper() for key in result.keys()])
         difference = list(interesting.difference(result_set))
 
         logging.error("We were not able to find on the keys requested from vcvarsall.")
